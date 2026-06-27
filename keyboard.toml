@@ -79,7 +79,7 @@ keys = """
     Q               W               E               R               T               Y               Y               U               I               O               P               bspc
             A               S               D               F               G                               H               J               K               L               scln
     lsft            Z               X               C               V               B               B               N               M               comm            dot             MT(slsh,rshift)
-    lctl                                            lalt            menu            spc             LT(1,ent,PERM)       ralt            lgui                                            LT(2,del,PERM)
+    lctl                                            lalt            menu            spc             LT(1,ENT,PERM)       ralt            lgui                                            LT(2,EDL,PERM)
 """
 
 [[layer]] # Layer 1
