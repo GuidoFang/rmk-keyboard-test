@@ -15,7 +15,7 @@ jobs:
 
     steps:
       - name: Checkout storage
-        uses: actions/actions/checkout@v4
+        uses: actions/checkout@v4          # ← 改成这行（正确）
 
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@stable
