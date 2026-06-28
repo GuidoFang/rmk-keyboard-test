@@ -1,4 +1,5 @@
 name: Build RMK Split Firmware
+
 on:
   workflow_dispatch:
   push:
@@ -10,11 +11,11 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        # 定义三个不同的目标：中央接收器、左手、右手
-        target: [central, peripheral_left, peripheral_right]
+        target: [dongle, left, right]
+
     steps:
       - name: Checkout storage
-        uses: actions/checkout@v4
+        uses: actions/actions/checkout@v4
 
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@stable
@@ -22,26 +23,29 @@ jobs:
           targets: thumbv7em-none-eabihf
 
       - name: Install rmk-cli
-        run: cargo install rmk-cli
+        run: |
+          cargo install rmk --locked --features cli --version 0.15
 
       - name: Build Firmware
         env:
-          # 加上我们最开始提到的环境变量，防止在线编译网络报错
           CARGO_HTTP_MULTIPLEXING: false
-        # 根据矩阵不同的 target 分别进行编译
         run: |
-          if [ "${{ matrix.target }}" = "central" ]; then
-            cargo rmk build --target thumbv7em-none-eabihf --bin central
-          elif [ "${{ matrix.target }}" = "peripheral_left" ]; then
-            cargo rmk build --target thumbv7em-none-eabihf --bin peripheral_left
-          else
-            cargo rmk build --target thumbv7em-none-eabihf --bin peripheral_right
-          fi
+          case "${{ matrix.target }}" in
+            "dongle")
+              cargo rmk build --target thumbv7em-none-eabihf --bin central
+              ;;
+            "left")
+              cargo rmk build --target thumbv7em-none-eabihf --bin peripheral_left
+              ;;
+            "right")
+              cargo rmk build --target thumbv7em-none-eabihf --bin peripheral_right
+              ;;
+          esac
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: ANSIC-${{ matrix.target }}-firmware
+          name: ANSIC-${{ matrix.target }}
           path: |
             target/thumbv7em-none-eabihf/release/*.uf2
             target/thumbv7em-none-eabihf/release/*.hex
