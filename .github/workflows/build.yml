@@ -1,5 +1,4 @@
 name: Build RMK Split Firmware
-
 on:
   workflow_dispatch:
   push:
@@ -9,33 +8,59 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-
+    strategy:
+      matrix:
+        # 定义三个不同的目标：中央接收器、左手、右手
+        target: [central, peripheral_left, peripheral_right]
     steps:
-      - name: Checkout code
+      - name: Checkout storage
         uses: actions/checkout@v4
 
-      - name: Setup Rust
+      - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: thumbv7em-none-eabihf
 
-      - name: Install rmk-cli
-        run: cargo install rmk-cli
-
-      - name: Generate and Build Firmware
+      - name: Install Embedded Build Tools
         run: |
-          # 使用 rmk-cli 根据 keyboard.toml 和 vial.json 生成项目并编译
-          rmk-cli keyboard.toml vial.json --output-dir .
-          
-          # 编译三个目标
-          cargo rmk build --target thumbv7em-none-eabihf --bin central
-          cargo rmk build --target thumbv7em-none-eabihf --bin peripheral_left
-          cargo rmk build --target thumbv7em-none-eabihf --bin peripheral_right
+          cargo install rmkit
+          cargo install flip-link
+
+      - name: Generate RMK Project
+        # 使用 rmkit create 建立项目框架。
+        # 如果该命令尝试进入交互模式，使用 echo "" 强行喂入默认回车，防卡死。
+        run: |
+          echo "" | rmkit create --name rmk_project || rmkit create rmk_project || true
+
+      - name: Patch Configuration Files
+        # 将仓库中你编写的、最新最准确的配置文件强制覆盖到生成的项目目录中
+        run: |
+          cp keyboard.toml rmk_project/keyboard.toml || cp keyboard.toml rmk_project/rmk.toml || true
+          cp vial.json rmk_project/vial.json || true
+
+      - name: Build Firmware
+        env:
+          CARGO_HTTP_MULTIPLEXING: false
+        # 进入自动生成的子文件夹，使用原生 cargo 编译目标
+        run: |
+          cd rmk_project
+          if [ "${{ matrix.target }}" = "central" ]; then
+            cargo build --release --target thumbv7em-none-eabihf --bin central
+          elif [ "${{ matrix.target }}" = "peripheral_left" ]; then
+            cargo build --release --target thumbv7em-none-eabihf --bin peripheral_left
+          else
+            cargo build --release --target thumbv7em-none-eabihf --bin peripheral_right
+          fi
+
+      - name: Prepare Artifacts
+        run: |
+          mkdir -p output/
+          cp rmk_project/target/thumbv7em-none-eabihf/release/*.uf2 output/ 2>/dev/null || true
+          cp rmk_project/target/thumbv7em-none-eabihf/release/*.hex output/ 2>/dev/null || true
+          cp rmk_project/target/thumbv7em-none-eabihf/release/*.bin output/ 2>/dev/null || true
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: ANSIC-Firmware
-          path: |
-            target/thumbv7em-none-eabihf/release/*.uf2
-            target/thumbv7em-none-eabihf/release/*.hex
+          name: ANSIC-${{ matrix.target }}-firmware
+          path: output/
