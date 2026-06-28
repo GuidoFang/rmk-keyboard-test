@@ -1,4 +1,5 @@
-name: Build RMK firmware
+name: Build RMK Split Firmware
+
 on:
   workflow_dispatch:
   push:
@@ -7,7 +8,43 @@ on:
 
 jobs:
   build:
-    uses: haobogu/rmk/.github/workflows/user_build.yml@main
-    with:
-      keyboard_toml_path: "keyboard.toml"
-      vial_json_path: "vial.json"
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        target: [dongle, left, right]   # 改成更直观的名字
+
+    steps:
+      - name: Checkout storage
+        uses: actions/checkout@v4
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: thumbv7em-none-eabihf
+
+      - name: Install rmk-cli
+        run: cargo install rmk-cli
+
+      - name: Build Firmware
+        env:
+          CARGO_HTTP_MULTIPLEXING: false
+        run: |
+          case "${{ matrix.target }}" in
+            "dongle")
+              cargo rmk build --target thumbv7em-none-eabihf --bin central
+              ;;
+            "left")
+              cargo rmk build --target thumbv7em-none-eabihf --bin peripheral_left
+              ;;
+            "right")
+              cargo rmk build --target thumbv7em-none-eabihf --bin peripheral_right
+              ;;
+          esac
+
+      - name: Rename and Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ANSIC-${{ matrix.target }}
+          path: |
+            target/thumbv7em-none-eabihf/release/*.uf2
+            target/thumbv7em-none-eabihf/release/*.hex
