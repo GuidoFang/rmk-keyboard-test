@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        target: [dongle, left, right]   # 改成更直观的名字
+        target: [dongle, left, right]
 
     steps:
       - name: Checkout storage
@@ -23,7 +23,7 @@ jobs:
           targets: thumbv7em-none-eabihf
 
       - name: Install rmk-cli
-        run: cargo install rmk-cli
+        uses: taiki-e/install-action@rmk
 
       - name: Build Firmware
         env:
