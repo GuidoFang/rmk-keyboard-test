@@ -15,7 +15,7 @@ jobs:
 
     steps:
       - name: Checkout storage
-        uses: actions/checkout@v4          # ← 改成这行（正确）
+        uses: actions/checkout@v4
 
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@stable
@@ -24,7 +24,7 @@ jobs:
 
       - name: Install rmk-cli
         run: |
-          cargo install rmk --locked --features cli --version 0.15
+          cargo install rmk --locked --features cli
 
       - name: Build Firmware
         env:
