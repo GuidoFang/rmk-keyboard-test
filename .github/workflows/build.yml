@@ -1,5 +1,4 @@
-name: Build RMK Firmware
-
+name: Build RMK Split Firmware
 on:
   workflow_dispatch:
   push:
@@ -7,17 +6,39 @@ on:
       - "**"
 
 jobs:
-  # 利用矩阵策略，分别传入 3 个不同的编译目标给官方的工作流
   build:
+    runs-on: ubuntu-latest
     strategy:
       matrix:
+        # 对应你的三个固件角色
         target: [central, peripheral_left, peripheral_right]
-    
-    # 完美调用官方推荐的可复用工作流
-    uses: haobogu/rmk/.github/workflows/user_build.yml@main
-    with:
-      keyboard_toml_path: "keyboard.toml"
-      vial_json_path: "vial.json"
-      # 将矩阵中的 target 变量直接喂给官方工作流
-      # （注：官方 user_build.yml 通常提供了 target 参数。如果该参数名有出入，它也会默认读取你 toml 内的特征）
-      target: ${{ matrix.target }}
+    steps:
+      - name: Checkout storage
+        uses: actions/checkout@v4
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: thumbv7em-none-eabihf
+
+      - name: Install Tools
+        run: |
+          cargo install rmkit
+          cargo install flip-link
+
+      - name: Build Split Firmware
+        env:
+          CARGO_HTTP_MULTIPLEXING: false
+        # 通过 rmkit 绕过官方 Reusable Workflow 的硬编码文件限制，直接编译单端目标
+        run: |
+          rmkit build --target thumbv7em-none-eabihf --bin ${{ matrix.target }}
+
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ANSIC-${{ matrix.target }}-firmware
+          path: |
+            target/thumbv7em-none-eabihf/release/*.uf2
+            target/thumbv7em-none-eabihf/release/*.hex
+            target/thumbv7em-none-eabihf/release/*.bin
+          if-no-files-found: ignore
