@@ -1,4 +1,5 @@
 name: Build RMK Split Firmware
+
 on:
   workflow_dispatch:
   push:
@@ -8,57 +9,33 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        # 定义三个不同的目标：中央接收器、左手、右手
-        target: [central, peripheral_left, peripheral_right]
+
     steps:
-      - name: Checkout storage
+      - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup Rust toolchain
+      - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: thumbv7em-none-eabihf
 
-      - name: Install Embedded Build Tools
-        # 补充安装 RMK 编译必需的 flip-link 保护工具
-        run: |
-          cargo install rmkit
-          cargo install flip-link
+      - name: Install rmk-cli
+        run: cargo install rmk-cli
 
-      - name: Generate and Patch RMK Project
-        # 1. 采用非交互模式建立分体蓝牙项目外设模板
-        # 2. 将你仓库中自定义的 keyboard.toml 和 vial.json 覆盖至新项目中
+      - name: Generate and Build Firmware
         run: |
-          rmkit init --name ansic_firmware --board nrf52840_ble_split --non-interactive
-          cp keyboard.toml ansic_firmware/keyboard.toml
-          cp vial.json ansic_firmware/vial.json
-
-      - name: Build Firmware
-        env:
-          CARGO_HTTP_MULTIPLEXING: false
-        # 注意：由于 rmkit init 创建了子目录，我们需要 cd 进子项目目录编译
-        run: |
-          cd ansic_firmware
-          if [ "${{ matrix.target }}" = "central" ]; then
-            cargo build --release --target thumbv7em-none-eabihf --bin central
-          elif [ "${{ matrix.target }}" = "peripheral_left" ]; then
-            cargo build --release --target thumbv7em-none-eabihf --bin peripheral_left
-          else
-            cargo build --release --target thumbv7em-none-eabihf --bin peripheral_right
-          fi
-
-      - name: Prepare Artifacts
-        run: |
-          mkdir -p output/
-          # 提取对应编译出来的固件产物（支持 uf2, hex 和 bin）
-          cp ansic_firmware/target/thumbv7em-none-eabihf/release/*.uf2 output/ 2>/dev/null || true
-          cp ansic_firmware/target/thumbv7em-none-eabihf/release/*.hex output/ 2>/dev/null || true
-          cp ansic_firmware/target/thumbv7em-none-eabihf/release/*.bin output/ 2>/dev/null || true
+          # 使用 rmk-cli 根据 keyboard.toml 和 vial.json 生成项目并编译
+          rmk-cli keyboard.toml vial.json --output-dir .
+          
+          # 编译三个目标
+          cargo rmk build --target thumbv7em-none-eabihf --bin central
+          cargo rmk build --target thumbv7em-none-eabihf --bin peripheral_left
+          cargo rmk build --target thumbv7em-none-eabihf --bin peripheral_right
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: ANSIC-${{ matrix.target }}-firmware
-          path: output/
+          name: ANSIC-Firmware
+          path: |
+            target/thumbv7em-none-eabihf/release/*.uf2
+            target/thumbv7em-none-eabihf/release/*.hex
