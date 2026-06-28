@@ -21,20 +21,26 @@ jobs:
         with:
           targets: thumbv7em-none-eabihf
 
-      - name: Install rmkit
-        # 缓存并安装正确的 rmkit 工具
-        run: cargo install rmkit
+      - name: Install Embedded Build Tools
+        # 补充安装 RMK 编译必需的 flip-link 保护工具
+        run: |
+          cargo install rmkit
+          cargo install flip-link
 
-      - name: Generate Rust Project from TOML
-        # 根据你的 keyboard.toml 和 vial.json，在当前目录自动生成完整的 Rust 代码和依赖结构
-        run: rmkit generate
+      - name: Generate and Patch RMK Project
+        # 1. 采用非交互模式建立分体蓝牙项目外设模板
+        # 2. 将你仓库中自定义的 keyboard.toml 和 vial.json 覆盖至新项目中
+        run: |
+          rmkit init --name ansic_firmware --board nrf52840_ble_split --non-interactive
+          cp keyboard.toml ansic_firmware/keyboard.toml
+          cp vial.json ansic_firmware/vial.json
 
       - name: Build Firmware
         env:
-          # 防止在线编译时因网络多路复用导致报错
           CARGO_HTTP_MULTIPLEXING: false
-        # 使用原生 cargo 编译由 rmkit 刚刚生成的 binary 目标
+        # 注意：由于 rmkit init 创建了子目录，我们需要 cd 进子项目目录编译
         run: |
+          cd ansic_firmware
           if [ "${{ matrix.target }}" = "central" ]; then
             cargo build --release --target thumbv7em-none-eabihf --bin central
           elif [ "${{ matrix.target }}" = "peripheral_left" ]; then
@@ -46,9 +52,10 @@ jobs:
       - name: Prepare Artifacts
         run: |
           mkdir -p output/
-          cp target/thumbv7em-none-eabihf/release/*.uf2 output/ 2>/dev/null || true
-          cp target/thumbv7em-none-eabihf/release/*.hex output/ 2>/dev/null || true
-          cp target/thumbv7em-none-eabihf/release/*.bin output/ 2>/dev/null || true
+          # 提取对应编译出来的固件产物（支持 uf2, hex 和 bin）
+          cp ansic_firmware/target/thumbv7em-none-eabihf/release/*.uf2 output/ 2>/dev/null || true
+          cp ansic_firmware/target/thumbv7em-none-eabihf/release/*.hex output/ 2>/dev/null || true
+          cp ansic_firmware/target/thumbv7em-none-eabihf/release/*.bin output/ 2>/dev/null || true
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
