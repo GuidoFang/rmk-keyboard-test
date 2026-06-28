@@ -1,5 +1,4 @@
 name: Build RMK Split Firmware
-
 on:
   workflow_dispatch:
   push:
@@ -11,8 +10,8 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        target: [dongle, left, right]
-
+        # 定义三个不同的目标：中央接收器、左手、右手
+        target: [central, peripheral_left, peripheral_right]
     steps:
       - name: Checkout storage
         uses: actions/checkout@v4
@@ -22,30 +21,37 @@ jobs:
         with:
           targets: thumbv7em-none-eabihf
 
-      - name: Install rmk-cli
-        run: |
-          cargo install rmk --locked --features cli
+      - name: Install rmkit
+        # 缓存并安装正确的 rmkit 工具
+        run: cargo install rmkit
+
+      - name: Generate Rust Project from TOML
+        # 根据你的 keyboard.toml 和 vial.json，在当前目录自动生成完整的 Rust 代码和依赖结构
+        run: rmkit generate
 
       - name: Build Firmware
         env:
+          # 防止在线编译时因网络多路复用导致报错
           CARGO_HTTP_MULTIPLEXING: false
+        # 使用原生 cargo 编译由 rmkit 刚刚生成的 binary 目标
         run: |
-          case "${{ matrix.target }}" in
-            "dongle")
-              cargo rmk build --target thumbv7em-none-eabihf --bin central
-              ;;
-            "left")
-              cargo rmk build --target thumbv7em-none-eabihf --bin peripheral_left
-              ;;
-            "right")
-              cargo rmk build --target thumbv7em-none-eabihf --bin peripheral_right
-              ;;
-          esac
+          if [ "${{ matrix.target }}" = "central" ]; then
+            cargo build --release --target thumbv7em-none-eabihf --bin central
+          elif [ "${{ matrix.target }}" = "peripheral_left" ]; then
+            cargo build --release --target thumbv7em-none-eabihf --bin peripheral_left
+          else
+            cargo build --release --target thumbv7em-none-eabihf --bin peripheral_right
+          fi
+
+      - name: Prepare Artifacts
+        run: |
+          mkdir -p output/
+          cp target/thumbv7em-none-eabihf/release/*.uf2 output/ 2>/dev/null || true
+          cp target/thumbv7em-none-eabihf/release/*.hex output/ 2>/dev/null || true
+          cp target/thumbv7em-none-eabihf/release/*.bin output/ 2>/dev/null || true
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: ANSIC-${{ matrix.target }}
-          path: |
-            target/thumbv7em-none-eabihf/release/*.uf2
-            target/thumbv7em-none-eabihf/release/*.hex
+          name: ANSIC-${{ matrix.target }}-firmware
+          path: output/
